@@ -19,8 +19,8 @@ export default function ApplyPanel({
   const { tailoring, job } = result;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-0 sm:items-center sm:p-6">
-      <div className="w-full max-w-2xl overflow-hidden rounded-t-[20px] bg-white sm:rounded-[20px]">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/55 p-0 backdrop-blur-md sm:items-center sm:p-6">
+      <div className="w-full max-w-2xl overflow-hidden rounded-t-[20px] border border-ink/10 bg-surface/90 backdrop-blur-2xl sm:rounded-[20px]">
         <header className="flex items-start justify-between gap-4 border-b border-line px-6 py-5">
           <div className="min-w-0">
             <h2 className="truncate text-lg font-bold">{job.title}</h2>
@@ -49,7 +49,7 @@ export default function ApplyPanel({
                   {tailoring.violations.slice(0, 8).map((v, i) => (
                     <li key={i}>
                       <span className="font-semibold text-ink">{v.kind}</span>{" "}
-                      <code className="rounded bg-white px-1">{v.value}</code> — {v.detail}
+                      <code className="rounded bg-surface px-1">{v.value}</code> — {v.detail}
                     </li>
                   ))}
                   {tailoring.violations.length > 8 && (
@@ -77,6 +77,73 @@ export default function ApplyPanel({
             </div>
           )}
 
+          {/* --- ATS review of the exact exported resume --- */}
+          {tailoring.ats_review && (
+            <section className="mb-5 rounded-xl border border-line bg-page p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-bold">ATS review</h3>
+                {tailoring.ats_review.match_level && (
+                  <span className="rounded-full border border-brand/30 bg-brand-tint px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-brand">
+                    {tailoring.ats_review.match_level} match
+                  </span>
+                )}
+              </div>
+              {tailoring.ats_review.summary && (
+                <p className="mt-2 text-sm leading-relaxed text-muted">
+                  {tailoring.ats_review.summary}
+                </p>
+              )}
+
+              {tailoring.ats_review.strengths.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted">
+                    What works
+                  </p>
+                  <ul className="mt-2 space-y-1 text-sm text-ink">
+                    {tailoring.ats_review.strengths.map((item, index) => (
+                      <li key={index}>✓ {item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {tailoring.ats_review.suggested_changes.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted">
+                    Suggested improvements
+                  </p>
+                  <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-ink">
+                    {tailoring.ats_review.suggested_changes.map((item, index) => (
+                      <li key={index}>{item}</li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
+              {tailoring.ats_review.keyword_gaps.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted">
+                    Potential keyword gaps
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {tailoring.ats_review.keyword_gaps.map((keyword, index) => (
+                      <span
+                        key={index}
+                        className="rounded-full border border-line bg-surface px-2.5 py-1 text-xs text-muted"
+                      >
+                        {keyword}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-muted">
+                    Add a missing keyword only when it accurately describes experience
+                    you can support.
+                  </p>
+                </div>
+              )}
+            </section>
+          )}
+
           {/* --- downloads --- */}
           <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">
             Your files
@@ -93,6 +160,9 @@ export default function ApplyPanel({
             {result.docx_url && (
               <a className="btn-ghost" href={result.docx_url} download>
                 Download .docx
+                <span className="rounded-full bg-page px-2 py-0.5 text-[10px] font-bold">
+                  JAKE TEMPLATE
+                </span>
               </a>
             )}
           </div>
@@ -103,8 +173,8 @@ export default function ApplyPanel({
             </p>
           )}
           <p className="mt-3 text-xs text-muted">
-            The PDF is a polished single page for humans. The .docx is the safest choice
-            when an application form parses your resume with an ATS.
+            Both files use the compact, single-column Jake template. The PDF is always
+            one page; use the .docx when an application form needs to parse your resume.
           </p>
         </div>
 

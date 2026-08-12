@@ -32,7 +32,12 @@ services:
       - "8000"
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      # Next.js compiles rewrites into the production bundle, so the Compose service
+      # address must be present while the frontend image is built.
+      args:
+        BACKEND_URL: http://backend:8000
     environment:
       BACKEND_URL: http://backend:8000
     ports:

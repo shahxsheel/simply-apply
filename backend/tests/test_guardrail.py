@@ -104,6 +104,14 @@ def test_promoted_job_title_is_caught(base: StructuredResume) -> None:
     assert "title" in _kinds(guardrail.check(base, tailored))
 
 
+def test_title_cannot_be_moved_to_a_different_employer(base: StructuredResume) -> None:
+    """A real title and employer are still false when paired with each other."""
+    base.work.append(Work(name="Beta LLC", position="Engineering Manager"))
+    tailored = base.model_copy(deep=True)
+    tailored.work[0].position = "Engineering Manager"
+    assert "role" in _kinds(guardrail.check(base, tailored))
+
+
 def test_stretched_end_date_is_caught(base: StructuredResume) -> None:
     """Closing an employment gap by extending a date."""
     tailored = base.model_copy(deep=True)
@@ -159,6 +167,12 @@ def test_invented_project_is_caught(base: StructuredResume) -> None:
     tailored = base.model_copy(deep=True)
     tailored.projects.append(Project(name="Distributed Raft Store"))
     assert "project" in _kinds(guardrail.check(base, tailored))
+
+
+def test_invented_project_date_is_caught(base: StructuredResume) -> None:
+    tailored = base.model_copy(deep=True)
+    tailored.projects[0].startDate = "2026-01"
+    assert "date" in _kinds(guardrail.check(base, tailored))
 
 
 def test_multiple_fabrications_all_reported(base: StructuredResume) -> None:

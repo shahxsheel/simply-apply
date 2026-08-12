@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import docx
 import pytest
+from docx.oxml.ns import qn
 
 from app.schemas import Basics, Education, Project, Skill, StructuredResume, Work
 from app.services.render_docx import render_docx
@@ -49,8 +50,14 @@ def _extract(path) -> list[str]:
 
 def test_sections_appear_in_reading_order(resume, tmp_path) -> None:
     lines = _extract(render_docx(resume, tmp_path / "r.docx"))
-    headings = [l for l in lines if l in {"SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS"}]
-    assert headings == ["SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS"]
+    expected = [
+        "PROFESSIONAL SUMMARY",
+        "EXPERIENCE",
+        "EDUCATION",
+        "PROJECTS",
+        "TECHNICAL SKILLS",
+    ]
+    assert [line for line in lines if line in expected] == expected
 
 
 def test_name_is_first_line(resume, tmp_path) -> None:
@@ -88,6 +95,21 @@ def test_no_tables_are_emitted(resume, tmp_path) -> None:
     """Tables are a top cause of out-of-order extraction. We must emit none."""
     document = docx.Document(str(render_docx(resume, tmp_path / "r.docx")))
     assert len(document.tables) == 0
+
+
+def test_jake_template_uses_letter_page_and_compact_margins(resume, tmp_path) -> None:
+    document = docx.Document(str(render_docx(resume, tmp_path / "r.docx")))
+    section = document.sections[0]
+    assert round(section.page_width.inches, 2) == 8.5
+    assert round(section.page_height.inches, 2) == 11.0
+    assert round(section.left_margin.inches, 2) == 0.5
+    assert round(section.right_margin.inches, 2) == 0.5
+    assert round(section.top_margin.inches, 2) == 0.5
+    assert round(section.bottom_margin.inches, 2) == 0.5
+    vertical_alignment = section._sectPr.find(qn("w:vAlign"))
+    assert vertical_alignment is not None
+    assert vertical_alignment.get(qn("w:val")) == "both"
+    assert document.styles["Normal"].font.name == "Times New Roman"
 
 
 def test_bare_skill_renders_without_dangling_colon(tmp_path) -> None:

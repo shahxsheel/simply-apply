@@ -6,8 +6,8 @@ import { api, type SettingsOut } from "@/lib/api";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<SettingsOut | null>(null);
-  const [sources, setSources] = useState<Record<string, string>>({});
   const [companies, setCompanies] = useState("");
+  const [ashbyBoards, setAshbyBoards] = useState("");
   const [capabilities, setCapabilities] = useState<{
     pdf: boolean;
     pdf_detail: string;
@@ -19,15 +19,15 @@ export default function SettingsPage() {
   useEffect(() => {
     Promise.all([
       api.settings(),
-      api.sources(),
       api.capabilities(),
       api.greenhouseCompanies(),
+      api.ashbyBoards(),
     ])
-      .then(([s, src, caps, cos]) => {
+      .then(([s, caps, cos, boards]) => {
         setSettings(s);
-        setSources(src);
         setCapabilities(caps);
         setCompanies(cos.join("\n"));
+        setAshbyBoards(boards.join("\n"));
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Load failed."));
   }, []);
@@ -80,40 +80,6 @@ export default function SettingsPage() {
         <ProviderSetup settings={settings} onSaved={setSettings} />
       </div>
 
-      {/* ---------------- sources ---------------- */}
-      <section className="card mb-4 p-5">
-        <h2 className="font-bold">Job sources</h2>
-        <p className="mt-1 text-sm text-muted">
-          A source that fails is reported in the results header rather than silently
-          dropped.
-        </p>
-        <div className="mt-3 flex flex-col gap-2">
-          {settings.available_sources.map((source) => {
-            const enabled = settings.enabled_sources.includes(source);
-            return (
-              <label
-                key={source}
-                className="flex cursor-pointer items-center gap-3 text-sm"
-              >
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 accent-[#12a1c0]"
-                  checked={enabled}
-                  onChange={() =>
-                    save({
-                      enabled_sources: enabled
-                        ? settings.enabled_sources.filter((s) => s !== source)
-                        : [...settings.enabled_sources, source],
-                    })
-                  }
-                />
-                {sources[source] ?? source}
-              </label>
-            );
-          })}
-        </div>
-      </section>
-
       {/* ---------------- greenhouse ---------------- */}
       <section className="card mb-4 p-5">
         <h2 className="font-bold">Greenhouse companies</h2>
@@ -146,6 +112,37 @@ export default function SettingsPage() {
         </button>
       </section>
 
+      {/* ---------------- ashby ---------------- */}
+      <section className="card mb-4 p-5">
+        <h2 className="font-bold">Ashby internship boards</h2>
+        <p className="mt-1 text-sm text-muted">
+          One employer board per line, taken from{" "}
+          <code className="rounded bg-page px-1">
+            jobs.ashbyhq.com/<b>board</b>
+          </code>
+          . Only postings explicitly identified as internships or co-ops are shown.
+        </p>
+        <textarea
+          className="field mt-3 min-h-[140px] resize-y font-mono text-xs"
+          value={ashbyBoards}
+          onChange={(event) => setAshbyBoards(event.target.value)}
+        />
+        <button
+          className="btn-primary mt-3"
+          disabled={busy}
+          onClick={() =>
+            save({
+              ashby_boards: ashbyBoards
+                .split("\n")
+                .map((board) => board.trim())
+                .filter(Boolean),
+            })
+          }
+        >
+          Save Ashby boards
+        </button>
+      </section>
+
       {/* ---------------- capabilities ---------------- */}
       <section className="card p-5">
         <h2 className="font-bold">This install</h2>
@@ -159,10 +156,6 @@ export default function SettingsPage() {
             <dd className={capabilities?.pdf ? "font-semibold text-brand" : "text-muted"}>
               {capabilities?.pdf ? "Available · single page" : "Unavailable"}
             </dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted">Search cache TTL</dt>
-            <dd>{settings.cache_ttl_minutes} min</dd>
           </div>
         </dl>
         {capabilities && !capabilities.pdf && (

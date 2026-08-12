@@ -109,4 +109,5 @@ async def parse_resume(provider: LLMProvider, text: str) -> StructuredResume:
         system=SYSTEM_PROMPT,
         user=f"RESUME TEXT\n{text}",
         schema=StructuredResume,
+        reasoning=False,
     )

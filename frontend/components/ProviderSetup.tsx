@@ -7,7 +7,7 @@ import { api, type SettingsOut } from "@/lib/api";
  * Inline "connect a model" card.
  *
  * Deliberately self-contained so it can appear wherever the user actually hits the wall
- * — the search page, the resume upload screen, or Settings — rather than forcing them to
+ * — an internship board, the resume upload screen, or Settings — rather than forcing them to
  * go hunting through Settings after a failed action. Paste a key or point at Ollama and
  * test it, all without leaving the page.
  */

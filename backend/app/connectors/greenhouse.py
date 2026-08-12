@@ -21,29 +21,28 @@ from datetime import datetime
 
 import httpx
 
-from app.connectors.base import DEFAULT_TIMEOUT, JobConnector, html_to_text
-from app.schemas import JobRecord, SearchQuery
+from app.connectors.base import DEFAULT_TIMEOUT, html_to_text
+from app.schemas import JobRecord
+from app.services.internship_filter import is_internship
 
 BOARD_URL = "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true"
 
 REMOTE_HINTS = ("remote", "anywhere", "distributed", "work from home")
 
 
-class GreenhouseConnector(JobConnector):
+class GreenhouseConnector:
     source = "greenhouse"
-    label = "Greenhouse (ATS boards)"
-    priority = 10  # original employer board — beats aggregators in dedupe
 
     def __init__(self, companies: list[str] | None = None, max_concurrent: int = 6) -> None:
         self.companies = companies or []
         self._sem = asyncio.Semaphore(max_concurrent)
 
-    async def fetch(self, client: httpx.AsyncClient, q: SearchQuery) -> list[JobRecord]:
+    async def fetch(self, client: httpx.AsyncClient) -> list[JobRecord]:
         if not self.companies:
             return []
 
         results = await asyncio.gather(
-            *(self._fetch_company(client, slug, q) for slug in self.companies),
+            *(self._fetch_company(client, slug) for slug in self.companies),
             return_exceptions=True,
         )
 
@@ -64,7 +63,7 @@ class GreenhouseConnector(JobConnector):
         return jobs
 
     async def _fetch_company(
-        self, client: httpx.AsyncClient, slug: str, q: SearchQuery
+        self, client: httpx.AsyncClient, slug: str
     ) -> list[JobRecord]:
         async with self._sem:
             resp = await client.get(BOARD_URL.format(slug=slug), timeout=DEFAULT_TIMEOUT)
@@ -74,11 +73,7 @@ class GreenhouseConnector(JobConnector):
         out: list[JobRecord] = []
         for raw in payload.get("jobs", []):
             record = self._normalize(raw, slug)
-            if record is None:
-                continue
-            if q.remote_only and not record.remote:
-                continue
-            if not self.matches(q, record.title, record.description, record.location):
+            if record is None or not is_internship(record.title, record.description):
                 continue
             out.append(record)
         return out

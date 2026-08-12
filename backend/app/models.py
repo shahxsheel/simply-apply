@@ -17,7 +17,6 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -71,24 +70,25 @@ class Application(Base):
     docx_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     pdf_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str] = mapped_column(Text, default="")
+    workflow_status: Mapped[str] = mapped_column(String(20), default="completed")
+    workflow_step: Mapped[str] = mapped_column(String(40), default="completed")
+    workflow_progress: Mapped[int] = mapped_column(Integer, default=100)
+    workflow_detail: Mapped[str] = mapped_column(Text, default="Resume ready.")
+    workflow_log: Mapped[str] = mapped_column(Text, default="[]")
+    workflow_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tailoring_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pdf_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    llm_provider: Mapped[str] = mapped_column(String(40), default="")
+    llm_model: Mapped[str] = mapped_column(String(120), default="")
+    llm_requests: Mapped[int] = mapped_column(Integer, default=0)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    cached_input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    cache_write_input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    reasoning_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    estimated_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     resume: Mapped[Resume] = relationship("Resume")
-
-
-class SearchCache(Base):
-    """Records when a (source, query) pair was last fetched, so the TTL is per-source.
-
-    Without this, a single slow or failing source would either be retried on every
-    keystroke or starve the whole cache.
-    """
-
-    __tablename__ = "search_cache"
-    __table_args__ = (UniqueConstraint("source", "query_key", name="uq_source_query"),)
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source: Mapped[str] = mapped_column(String(60))
-    query_key: Mapped[str] = mapped_column(String(500))
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
 
 class Setting(Base):

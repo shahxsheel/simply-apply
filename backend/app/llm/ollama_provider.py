@@ -43,6 +43,7 @@ class OllamaProvider(LLMProvider):
         user: str,
         schema: type[T],
         max_tokens: int = 16000,
+        reasoning: bool = True,
     ) -> T:
         payload = {
             "model": self.model,
@@ -70,6 +71,12 @@ class OllamaProvider(LLMProvider):
         content = (body.get("message") or {}).get("content", "")
         if not content:
             raise LLMError("Ollama returned an empty response.")
+
+        self.record_usage(
+            input_tokens=int(body.get("prompt_eval_count", 0) or 0),
+            output_tokens=int(body.get("eval_count", 0) or 0),
+            estimated_cost_usd=0.0,
+        )
 
         try:
             return schema.model_validate_json(content)

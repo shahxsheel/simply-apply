@@ -31,21 +31,46 @@ class JobRecord(BaseModel):
     description: str = ""
 
 
-class SearchQuery(BaseModel):
-    query: str = ""
-    location: str = ""
-    remote_only: bool = False
-    limit: int = 50
+class InternshipBoardResponse(BaseModel):
+    """Internship-only snapshot from one employer ATS provider."""
 
-    def cache_key(self) -> str:
-        return f"{self.query.strip().lower()}|{self.location.strip().lower()}|{self.remote_only}"
-
-
-class SearchResponse(BaseModel):
+    board: str
     jobs: list[JobRecord]
-    sources_ok: list[str]
-    sources_failed: dict[str, str] = Field(default_factory=dict)
-    from_cache: bool = False
+    warning: str | None = None
+
+
+class SimplifyTrackerJob(BaseModel):
+    """One open role scraped from Simplify's public Summer 2027 repository."""
+
+    id: str
+    company: str
+    role: str
+    location: str = ""
+    category: str
+    age: str = ""
+    apply_url: str
+    flags: list[str] = Field(default_factory=list)
+    remote: bool = False
+
+
+class SimplifyTrackerResponse(BaseModel):
+    jobs: list[SimplifyTrackerJob]
+    total: int
+    fetched_at: datetime
+    source_url: str
+    stale: bool = False
+    warning: str | None = None
+
+
+class LinkedInJobImport(BaseModel):
+    """A LinkedIn posting copied by the user; the server never fetches LinkedIn."""
+
+    url: str = Field(min_length=1, max_length=2000)
+    title: str = Field(min_length=1, max_length=400)
+    company: str = Field(min_length=1, max_length=300)
+    location: str = Field(default="", max_length=300)
+    remote: bool = False
+    description: str = Field(min_length=40, max_length=100_000)
 
 
 # ------------------------------------------------------------------------ resume
@@ -138,6 +163,16 @@ class GuardrailViolation(BaseModel):
     detail: str
 
 
+class ATSReview(BaseModel):
+    """Advisory review of the exact resume that was rendered for the job."""
+
+    match_level: str = ""
+    summary: str = ""
+    strengths: list[str] = Field(default_factory=list)
+    suggested_changes: list[str] = Field(default_factory=list)
+    keyword_gaps: list[str] = Field(default_factory=list)
+
+
 class TailorResult(BaseModel):
     resume: StructuredResume
     changed: bool
@@ -145,6 +180,7 @@ class TailorResult(BaseModel):
     violations: list[GuardrailViolation] = Field(default_factory=list)
     warning: str | None = None
     notes: list[str] = Field(default_factory=list)
+    ats_review: ATSReview | None = None
 
 
 class ApplyResponse(BaseModel):
@@ -157,6 +193,25 @@ class ApplyResponse(BaseModel):
     tailoring: TailorResult
 
 
+class TailorStartRequest(BaseModel):
+    """Enough listing data to create a tracker entry before scraping begins."""
+
+    job_id: str
+    source: str = ""
+    title: str = ""
+    company: str = ""
+    location: str = ""
+    remote: bool = False
+    apply_url: str = ""
+
+
+class ApplicationProgressEvent(BaseModel):
+    step: str
+    detail: str
+    progress: int
+    at: datetime
+
+
 # ------------------------------------------------------------------------ settings
 
 
@@ -166,9 +221,6 @@ class SettingsOut(BaseModel):
     has_key: bool
     ollama_host: str
     openai_base_url: str
-    enabled_sources: list[str]
-    available_sources: list[str]
-    cache_ttl_minutes: int
 
 
 class SettingsIn(BaseModel):
@@ -177,8 +229,8 @@ class SettingsIn(BaseModel):
     api_key: str | None = None
     ollama_host: str | None = None
     openai_base_url: str | None = None
-    enabled_sources: list[str] | None = None
     greenhouse_companies: list[str] | None = None
+    ashby_boards: list[str] | None = None
 
 
 class ApplicationOut(BaseModel):
@@ -193,3 +245,26 @@ class ApplicationOut(BaseModel):
     apply_url: str = ""
     docx_url: str | None = None
     pdf_url: str | None = None
+    workflow_status: str = "completed"
+    workflow_step: str = "completed"
+    workflow_progress: int = 100
+    workflow_detail: str = "Resume ready."
+    workflow_error: str | None = None
+    fit_match_level: str = ""
+    fit_summary: str = ""
+    llm_provider: str = ""
+    llm_model: str = ""
+    llm_requests: int = 0
+    input_tokens: int = 0
+    cached_input_tokens: int = 0
+    cache_write_input_tokens: int = 0
+    output_tokens: int = 0
+    reasoning_tokens: int = 0
+    estimated_cost_usd: float | None = None
+
+
+class ApplicationDetail(ApplicationOut):
+    description: str = ""
+    progress_events: list[ApplicationProgressEvent] = Field(default_factory=list)
+    tailoring: TailorResult | None = None
+    pdf_error: str | None = None

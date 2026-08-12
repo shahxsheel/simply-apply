@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 
 from app.llm.base import LLMError, LLMProvider
-from app.schemas import Basics, JobRecord, Skill, StructuredResume, Work
+from app.schemas import Basics, JobRecord, Project, Skill, StructuredResume, Work
 from app.services.tailor import tailor
 
 
@@ -25,9 +25,21 @@ class StubProvider(LLMProvider):
     def __init__(self, responses: list) -> None:
         self._responses = list(responses)
         self.calls: list[str] = []
+        self.systems: list[str] = []
+        self.ats_calls: list[str] = []
 
     async def complete_structured(self, *, system, user, schema, max_tokens=16000):
+        if schema.__name__ == "ATSReview":
+            self.ats_calls.append(user)
+            return schema(
+                match_level="Moderate",
+                summary="Relevant evidence is clear but could be more specific.",
+                strengths=["Python experience is prominent."],
+                suggested_changes=["Clarify the impact of the caching work."],
+                keyword_gaps=["Kubernetes"],
+            )
         self.calls.append(user)
+        self.systems.append(system)
         if not self._responses:
             raise AssertionError("StubProvider called more times than scripted")
         nxt = self._responses.pop(0)
@@ -88,6 +100,9 @@ async def test_clean_first_attempt_is_returned(base, job) -> None:
     assert result.fell_back is False
     assert result.violations == []
     assert len(provider.calls) == 1, "a clean result must not trigger a retry"
+    assert result.ats_review is not None
+    assert result.ats_review.match_level == "Moderate"
+    assert len(provider.ats_calls) == 1
 
 
 async def test_violation_triggers_retry_with_feedback(base, job) -> None:
@@ -140,6 +155,12 @@ async def test_prompt_contains_job_and_resume(base, job) -> None:
     assert "Globex" in prompt
     assert "Acme Corp" in prompt
     assert "Kubernetes" in prompt, "the JD text must reach the model"
+    assert "exactly 2 work experiences and exactly 3 projects" in provider.systems[0]
+    assert "not a complete employment history" in provider.systems[0]
+    assert "blank area at the end" in provider.systems[0]
+    assert "Do not underfill the page" in provider.systems[0]
+    assert "next-most-relevant truthful bullets" in provider.systems[0]
+    assert "Never use the Unicode em dash character (U+2014)" in provider.systems[0]
 
 
 async def test_long_job_description_is_truncated(base) -> None:
@@ -155,3 +176,71 @@ async def test_long_job_description_is_truncated(base) -> None:
     provider = StubProvider([_clean(base)])
     await tailor(provider, base, huge)
     assert "(truncated)" in provider.calls[0]
+
+
+async def test_one_page_budget_keeps_two_work_entries_and_three_projects(base, job) -> None:
+    expanded = base.model_copy(deep=True)
+    expanded.work = [
+        Work(name=f"Employer {i}", position=f"Role {i}", highlights=[f"Evidence {j}" for j in range(5)])
+        for i in range(5)
+    ]
+    expanded.projects = [
+        Project(name=f"Project {i}", highlights=[f"Project evidence {j}" for j in range(4)])
+        for i in range(5)
+    ]
+    candidate = expanded.model_copy(deep=True)
+    provider = StubProvider([candidate])
+
+    result = await tailor(provider, expanded, job)
+
+    assert [item.name for item in result.resume.work] == [
+        "Employer 0",
+        "Employer 1",
+    ]
+    assert all(len(item.highlights) == 3 for item in result.resume.work)
+    assert [item.name for item in result.resume.projects] == [
+        "Project 0",
+        "Project 1",
+        "Project 2",
+    ]
+    assert all(len(item.highlights) == 2 for item in result.resume.projects)
+    assert any("omitted 3 lower-priority work" in note for note in result.notes)
+    assert any("omitted 2 lower-priority projects" in note for note in result.notes)
+
+
+async def test_budget_fills_missing_model_sections_from_truthful_base(base, job) -> None:
+    expanded = base.model_copy(deep=True)
+    expanded.work.append(
+        Work(name="Beta Corp", position="Backend Intern", highlights=["Built APIs."])
+    )
+    expanded.projects = [
+        Project(name=f"Project {i}", highlights=[f"Evidence {i}."])
+        for i in range(3)
+    ]
+    candidate = _clean(expanded)
+    candidate.work = candidate.work[:1]
+    candidate.projects = candidate.projects[:1]
+    provider = StubProvider([candidate])
+
+    result = await tailor(provider, expanded, job)
+
+    assert len(result.resume.work) == 2
+    assert len(result.resume.projects) == 3
+    assert [item.name for item in result.resume.projects] == [
+        "Project 0",
+        "Project 1",
+        "Project 2",
+    ]
+
+
+async def test_verified_identity_and_education_are_restored(base, job) -> None:
+    base.basics.email = "jane@example.com"
+    candidate = _clean(base)
+    candidate.basics.name = "Jane Q. Doe"
+    candidate.basics.email = "invented@example.com"
+    provider = StubProvider([candidate])
+
+    result = await tailor(provider, base, job)
+
+    assert result.resume.basics.name == "Jane Doe"
+    assert result.resume.basics.email == "jane@example.com"

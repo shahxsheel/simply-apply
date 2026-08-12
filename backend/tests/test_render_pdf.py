@@ -68,6 +68,21 @@ def _text(path) -> str:
         pdf.close()
 
 
+def _vertical_text_bounds(path) -> tuple[float, float]:
+    pdf = pdfium.PdfDocument(str(path))
+    try:
+        page = pdf[0]
+        text_page = page.get_textpage()
+        boxes = [
+            text_page.get_charbox(index)
+            for index in range(text_page.count_chars())
+            if text_page.get_text_range(index, 1).strip()
+        ]
+        return min(box[1] for box in boxes), max(box[3] for box in boxes)
+    finally:
+        pdf.close()
+
+
 def test_output_is_a_real_pdf(resume, tmp_path) -> None:
     out = render_pdf(resume, tmp_path / "resume.pdf")
     assert out.exists()
@@ -79,12 +94,23 @@ def test_normal_resume_is_one_page(resume, tmp_path) -> None:
     assert _page_count(out) == 1
 
 
+def test_short_resume_uses_uniform_top_and_bottom_whitespace(resume, tmp_path) -> None:
+    out = render_pdf(resume, tmp_path / "resume.pdf")
+    bottom, top = _vertical_text_bounds(out)
+    top_whitespace = 11 * 72 - top
+
+    assert bottom < 55, "final content should reach the bottom margin"
+    assert abs(top_whitespace - bottom) < 16
+
+
 def test_content_survives_into_the_pdf(resume, tmp_path) -> None:
     out = render_pdf(resume, tmp_path / "resume.pdf")
     text = _text(out)
     assert "Jane Doe" in text
     assert "Acme Corp" in text
     assert "15%" in text
+    assert "PROFESSIONAL SUMMARY" in text
+    assert "TECHNICAL SKILLS" in text
 
 
 def test_oversized_resume_is_shrunk_to_one_page(tmp_path) -> None:

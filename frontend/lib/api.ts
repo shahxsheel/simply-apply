@@ -20,11 +20,31 @@ export type JobRecord = {
   description: string;
 };
 
-export type SearchResponse = {
+export type InternshipBoardResponse = {
+  board: "ashby" | "greenhouse";
   jobs: JobRecord[];
-  sources_ok: string[];
-  sources_failed: Record<string, string>;
-  from_cache: boolean;
+  warning: string | null;
+};
+
+export type SimplifyTrackerJob = {
+  id: string;
+  company: string;
+  role: string;
+  location: string;
+  category: string;
+  age: string;
+  apply_url: string;
+  flags: string[];
+  remote: boolean;
+};
+
+export type SimplifyTrackerResponse = {
+  jobs: SimplifyTrackerJob[];
+  total: number;
+  fetched_at: string;
+  source_url: string;
+  stale: boolean;
+  warning: string | null;
 };
 
 export type Work = {
@@ -93,6 +113,14 @@ export type GuardrailViolation = {
   detail: string;
 };
 
+export type ATSReview = {
+  match_level: string;
+  summary: string;
+  strengths: string[];
+  suggested_changes: string[];
+  keyword_gaps: string[];
+};
+
 export type TailorResult = {
   resume: StructuredResume;
   changed: boolean;
@@ -100,6 +128,7 @@ export type TailorResult = {
   violations: GuardrailViolation[];
   warning: string | null;
   notes: string[];
+  ats_review: ATSReview | null;
 };
 
 export type ApplyResponse = {
@@ -124,6 +153,55 @@ export type ApplicationOut = {
   apply_url: string;
   docx_url: string | null;
   pdf_url: string | null;
+  workflow_status: "queued" | "running" | "completed" | "failed";
+  workflow_step: string;
+  workflow_progress: number;
+  workflow_detail: string;
+  workflow_error: string | null;
+  fit_match_level: string;
+  fit_summary: string;
+  llm_provider: string;
+  llm_model: string;
+  llm_requests: number;
+  input_tokens: number;
+  cached_input_tokens: number;
+  cache_write_input_tokens: number;
+  output_tokens: number;
+  reasoning_tokens: number;
+  estimated_cost_usd: number | null;
+};
+
+export type ApplicationProgressEvent = {
+  step: string;
+  detail: string;
+  progress: number;
+  at: string;
+};
+
+export type ApplicationDetail = ApplicationOut & {
+  description: string;
+  progress_events: ApplicationProgressEvent[];
+  tailoring: TailorResult | null;
+  pdf_error: string | null;
+};
+
+export type TailorStartRequest = {
+  job_id: string;
+  source?: string;
+  title?: string;
+  company?: string;
+  location?: string;
+  remote?: boolean;
+  apply_url?: string;
+};
+
+export type LinkedInJobImport = {
+  url: string;
+  title: string;
+  company: string;
+  location: string;
+  remote: boolean;
+  description: string;
 };
 
 export type SettingsOut = {
@@ -132,9 +210,6 @@ export type SettingsOut = {
   has_key: boolean;
   ollama_host: string;
   openai_base_url: string;
-  enabled_sources: string[];
-  available_sources: string[];
-  cache_ttl_minutes: number;
 };
 
 /**
@@ -178,14 +253,27 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  search: (q: string, location: string, remoteOnly: boolean) =>
-    request<SearchResponse>(
-      `/api/search?q=${encodeURIComponent(q)}&location=${encodeURIComponent(
-        location,
-      )}&remote_only=${remoteOnly}`,
+  simplifyTracker: (q = "", category = "") =>
+    request<SimplifyTrackerResponse>(
+      `/api/simplify-tracker?q=${encodeURIComponent(q)}&category=${encodeURIComponent(
+        category,
+      )}&limit=500`,
     ),
 
-  sources: () => request<Record<string, string>>("/api/sources"),
+  prepareSimplifyJob: (jobId: string) =>
+    request<JobRecord>(
+      `/api/simplify-tracker/${encodeURIComponent(jobId)}/prepare`,
+      { method: "POST" },
+    ),
+
+  importLinkedInJob: (job: LinkedInJobImport) =>
+    request<JobRecord>("/api/linkedin-jobs", {
+      method: "POST",
+      body: JSON.stringify(job),
+    }),
+
+  internshipBoard: (board: "ashby" | "greenhouse") =>
+    request<InternshipBoardResponse>(`/api/internship-boards/${board}`),
 
   parseResume: (file: File) => {
     const form = new FormData();
@@ -217,6 +305,15 @@ export const api = {
 
   applications: () => request<ApplicationOut[]>("/api/applications"),
 
+  application: (id: number) =>
+    request<ApplicationDetail>(`/api/applications/${id}`),
+
+  startTailoring: (job: TailorStartRequest) =>
+    request<ApplicationOut>("/api/applications/tailor", {
+      method: "POST",
+      body: JSON.stringify(job),
+    }),
+
   updateApplication: (id: number, patch: { status?: string; notes?: string }) =>
     request<ApplicationOut>(`/api/applications/${id}`, {
       method: "PATCH",
@@ -245,4 +342,6 @@ export const api = {
 
   greenhouseCompanies: () =>
     request<string[]>("/api/settings/greenhouse-companies"),
+
+  ashbyBoards: () => request<string[]>("/api/settings/ashby-boards"),
 };

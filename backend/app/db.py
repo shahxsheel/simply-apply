@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import get_settings
@@ -45,6 +45,42 @@ def init_db() -> None:
     from app import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _migrate_application_workflow_columns()
+
+
+def _migrate_application_workflow_columns() -> None:
+    """Add lightweight workflow columns to databases created before background jobs.
+
+    SimplyApply intentionally has no migration framework: it is a local, single-file
+    application. Additive SQLite migrations keep existing trackers intact without asking
+    users to recreate their data volume.
+    """
+    existing = {column["name"] for column in inspect(engine).get_columns("applications")}
+    additions = {
+        "workflow_status": "VARCHAR(20) NOT NULL DEFAULT 'completed'",
+        "workflow_step": "VARCHAR(40) NOT NULL DEFAULT 'completed'",
+        "workflow_progress": "INTEGER NOT NULL DEFAULT 100",
+        "workflow_detail": "TEXT NOT NULL DEFAULT 'Resume ready.'",
+        "workflow_log": "TEXT NOT NULL DEFAULT '[]'",
+        "workflow_error": "TEXT",
+        "tailoring_json": "TEXT",
+        "pdf_error": "TEXT",
+        "llm_provider": "VARCHAR(40) NOT NULL DEFAULT ''",
+        "llm_model": "VARCHAR(120) NOT NULL DEFAULT ''",
+        "llm_requests": "INTEGER NOT NULL DEFAULT 0",
+        "input_tokens": "INTEGER NOT NULL DEFAULT 0",
+        "cached_input_tokens": "INTEGER NOT NULL DEFAULT 0",
+        "cache_write_input_tokens": "INTEGER NOT NULL DEFAULT 0",
+        "output_tokens": "INTEGER NOT NULL DEFAULT 0",
+        "reasoning_tokens": "INTEGER NOT NULL DEFAULT 0",
+        "estimated_cost_usd": "FLOAT",
+    }
+    with engine.begin() as connection:
+        for name, definition in additions.items():
+            if name not in existing:
+                connection.execute(
+                    text(f"ALTER TABLE applications ADD COLUMN {name} {definition}")
+                )
 
 
 def get_db() -> Iterator[Session]:

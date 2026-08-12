@@ -117,6 +117,11 @@ class BaseFacts:
     def __init__(self, base: StructuredResume) -> None:
         self.employers = {_key(j.name) for j in base.work if j.name}
         self.titles = {_key(j.position) for j in base.work if j.position}
+        self.role_pairs = {
+            (_key(j.name), _key(j.position))
+            for j in base.work
+            if j.name and j.position
+        }
         self.institutions = {_key(e.institution) for e in base.education if e.institution}
         self.degrees = {_key(e.studyType) for e in base.education if e.studyType}
         self.fields = {_key(e.area) for e in base.education if e.area}
@@ -156,6 +161,17 @@ def check(base: StructuredResume, tailored: StructuredResume) -> list[GuardrailV
             flag("employer", job.name, where, "Employer is not in the base resume.")
         if job.position and _key(job.position) not in facts.titles:
             flag("title", job.position, where, "Job title is not in the base resume.")
+        if (
+            job.name
+            and job.position
+            and (_key(job.name), _key(job.position)) not in facts.role_pairs
+        ):
+            flag(
+                "role",
+                f"{job.position} at {job.name}",
+                where,
+                "Employer and title do not belong to the same base-resume role.",
+            )
         for field in ("startDate", "endDate"):
             value = getattr(job, field)
             if value and _key(value) not in facts.dates:
@@ -177,8 +193,13 @@ def check(base: StructuredResume, tailored: StructuredResume) -> list[GuardrailV
 
     # --- projects --------------------------------------------------------
     for i, project in enumerate(tailored.projects):
+        where = f"projects[{i}]"
         if project.name and _key(project.name) not in facts.project_names:
-            flag("project", project.name, f"projects[{i}]", "Project is not in the base resume.")
+            flag("project", project.name, where, "Project is not in the base resume.")
+        for field in ("startDate", "endDate"):
+            value = getattr(project, field)
+            if value and _key(value) not in facts.dates:
+                flag("date", value, f"{where}.{field}", "Date is not in the base resume.")
 
     # --- skills ----------------------------------------------------------
     # Promoting a buried skill is the legitimate core of tailoring; introducing one the

@@ -7,7 +7,9 @@ RUN npm ci --no-audit --no-fund
 
 FROM node:22-slim AS builder
 WORKDIR /app
-ENV NEXT_TELEMETRY_DISABLED=1
+ARG BACKEND_URL=http://127.0.0.1:8000
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    BACKEND_URL=${BACKEND_URL}
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

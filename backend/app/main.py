@@ -10,7 +10,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.db import init_db
-from app.routers import applications, apply, resumes, search, settings
+from app.routers import (
+    applications,
+    apply,
+    internship_boards,
+    linkedin_jobs,
+    resumes,
+    settings,
+    simplify_tracker,
+)
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)-7s %(name)s: %(message)s"
@@ -20,15 +28,22 @@ logging.basicConfig(
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
-    logging.getLogger(__name__).info(
+    recovered = apply.recover_incomplete_application_tasks()
+    logger = logging.getLogger(__name__)
+    logger.info(
         "SimplyApply backend ready — data dir: %s", get_settings().data_dir.resolve()
     )
-    yield
+    if recovered:
+        logger.info("Resumed %s incomplete application task(s)", recovered)
+    try:
+        yield
+    finally:
+        await apply.shutdown_application_tasks()
 
 
 app = FastAPI(
     title="SimplyApply",
-    description="Self-hosted job search + truthful resume tailoring.",
+    description="Internship boards + truthful resume tailoring.",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -44,11 +59,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(search.router)
+app.include_router(internship_boards.router)
 app.include_router(resumes.router)
 app.include_router(apply.router)
 app.include_router(applications.router)
 app.include_router(settings.router)
+app.include_router(simplify_tracker.router)
+app.include_router(linkedin_jobs.router)
 
 
 @app.get("/api/health")

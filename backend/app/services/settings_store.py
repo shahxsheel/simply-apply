@@ -23,8 +23,8 @@ KEY_MODEL = "llm_model"
 KEY_API_KEY = "llm_api_key"
 KEY_OLLAMA_HOST = "ollama_host"
 KEY_OPENAI_BASE_URL = "openai_base_url"
-KEY_ENABLED_SOURCES = "enabled_sources"
 KEY_GREENHOUSE_COMPANIES = "greenhouse_companies"
+KEY_ASHBY_BOARDS = "ashby_boards"
 
 # Sensible starter set of Greenhouse boards. Greenhouse has no global search endpoint —
 # it is per-company by design — so a company list is required input, not a limitation
@@ -43,6 +43,10 @@ DEFAULT_GREENHOUSE_COMPANIES = [
     "gitlab",
     "asana",
 ]
+
+# These are public Ashby board names, not credentials.  They provide a useful starter
+# set and remain editable because Ashby, like Greenhouse, exposes boards per employer.
+DEFAULT_ASHBY_BOARDS = ["openai", "notion", "linear", "ramp", "cursor"]
 
 
 def get(db: Session, key: str, default: str = "") -> str:
@@ -110,3 +114,7 @@ def openai_base_url(db: Session) -> str:
 
 def greenhouse_companies(db: Session) -> list[str]:
     return get_list(db, KEY_GREENHOUSE_COMPANIES, DEFAULT_GREENHOUSE_COMPANIES)
+
+
+def ashby_boards(db: Session) -> list[str]:
+    return get_list(db, KEY_ASHBY_BOARDS, DEFAULT_ASHBY_BOARDS)

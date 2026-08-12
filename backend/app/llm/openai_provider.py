@@ -15,6 +15,7 @@ from typing import TypeVar
 from pydantic import BaseModel
 
 from app.llm.base import LLMError, LLMProvider
+from app.llm.usage import estimate_cost_usd
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -36,6 +37,9 @@ class OpenAIProvider(LLMProvider):
                 "No OpenAI API key configured. Add one in Settings, or switch provider."
             )
         self.model = model or DEFAULT_MODEL
+        self._official_openai = (base_url or "https://api.openai.com/v1").rstrip("/") == (
+            "https://api.openai.com/v1"
+        )
         try:
             from openai import AsyncOpenAI
         except ImportError as exc:  # pragma: no cover - dependency guard
@@ -60,6 +64,7 @@ class OpenAIProvider(LLMProvider):
         user: str,
         schema: type[T],
         max_tokens: int = 16000,
+        reasoning: bool = True,
     ) -> T:
         try:
             completion = await self._parse(
@@ -73,6 +78,38 @@ class OpenAIProvider(LLMProvider):
             )
         except Exception as exc:
             raise LLMError(f"OpenAI request failed: {exc}") from exc
+
+        # A completed response is billable even when its payload is unusable. Capture
+        # usage before checking refusal or structured-output validation.
+        usage = getattr(completion, "usage", None)
+        if usage is not None:
+            prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+            output_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+            prompt_details = getattr(usage, "prompt_tokens_details", None)
+            completion_details = getattr(usage, "completion_tokens_details", None)
+            cached_tokens = int(getattr(prompt_details, "cached_tokens", 0) or 0)
+            reasoning_tokens = int(
+                getattr(completion_details, "reasoning_tokens", 0) or 0
+            )
+            uncached_tokens = max(0, prompt_tokens - cached_tokens)
+            estimated = (
+                estimate_cost_usd(
+                    "openai",
+                    self.model,
+                    input_tokens=uncached_tokens,
+                    cached_input_tokens=cached_tokens,
+                    output_tokens=output_tokens,
+                )
+                if self._official_openai
+                else None
+            )
+            self.record_usage(
+                input_tokens=uncached_tokens,
+                cached_input_tokens=cached_tokens,
+                output_tokens=output_tokens,
+                reasoning_tokens=reasoning_tokens,
+                estimated_cost_usd=estimated,
+            )
 
         message = completion.choices[0].message
         if getattr(message, "refusal", None):

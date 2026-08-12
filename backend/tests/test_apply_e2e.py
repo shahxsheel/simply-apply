@@ -8,6 +8,8 @@ real one, including SQLite and python-docx.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import docx
 import pytest
 from fastapi.testclient import TestClient
@@ -51,11 +53,32 @@ class _Stub:
     """
 
     name = "stub"
+    model = "stub-model"
 
     def __init__(self, fabricate: bool = False) -> None:
         self.fabricate = fabricate
+        self.token_usage = SimpleNamespace(
+            requests=0,
+            input_tokens=0,
+            cached_input_tokens=0,
+            cache_write_input_tokens=0,
+            output_tokens=0,
+            reasoning_tokens=0,
+            estimated_cost_usd=None,
+        )
 
     async def complete_structured(self, *, system, user, schema, max_tokens=16000):
+        self.token_usage.requests += 1
+        self.token_usage.input_tokens += 100
+        self.token_usage.output_tokens += 20
+        if schema.__name__ == "ATSReview":
+            return schema(
+                match_level="Moderate",
+                summary="The resume has relevant backend evidence.",
+                strengths=["Python and Redis are supported."],
+                suggested_changes=["Make impact clearer where possible."],
+                keyword_gaps=["Kubernetes"],
+            )
         resume = schema.model_validate(BASE_RESUME)
         resume.basics.summary = "Backend engineer specializing in Python and Redis."
         if self.fabricate:
@@ -123,6 +146,85 @@ def test_health(client) -> None:
     assert client.get("/api/health").json()["status"] == "ok"
 
 
+def test_dedicated_internship_board_endpoint_replaces_search(client, monkeypatch) -> None:
+    import app.routers.internship_boards as board_module
+    from app.schemas import InternshipBoardResponse
+
+    async def fake_board(db, board):
+        assert board == "greenhouse"
+        return InternshipBoardResponse(board=board, jobs=[])
+
+    monkeypatch.setattr(board_module, "load_internship_board", fake_board)
+    response = client.get("/api/internship-boards/greenhouse")
+    assert response.status_code == 200
+    assert response.json()["board"] == "greenhouse"
+    assert client.get("/api/search").status_code == 404
+
+
+def test_linkedin_internship_import_is_saved_as_a_normal_job(client) -> None:
+    response = client.post(
+        "/api/linkedin-jobs",
+        json={
+            "url": (
+                "https://www.linkedin.com/jobs/view/software-engineering-intern-"
+                "at-acme-1234567890?trackingId=private"
+            ),
+            "title": "Software Engineering Intern — Summer 2027",
+            "company": "Acme",
+            "location": "Seattle, WA",
+            "remote": False,
+            "description": (
+                "This software engineering internship is for currently enrolled "
+                "students. You will build and test production Python services."
+            ),
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["id"] == "linkedin_manual:1234567890"
+    assert body["source"] == "linkedin_manual"
+    assert body["apply_url"] == (
+        "https://www.linkedin.com/jobs/view/"
+        "software-engineering-intern-at-acme-1234567890"
+    )
+    assert "trackingId" not in body["apply_url"]
+    assert "currently enrolled" in body["description"]
+
+
+def test_linkedin_import_rejects_non_linkedin_and_non_internship_jobs(client) -> None:
+    common = {
+        "title": "Software Engineer",
+        "company": "Acme",
+        "description": "A permanent software engineering role for experienced candidates.",
+    }
+    wrong_host = client.post(
+        "/api/linkedin-jobs",
+        json={**common, "url": "https://example.com/jobs/123"},
+    )
+    # Internship classification happens before URL normalization, and both inputs are
+    # intentionally invalid.  Check each condition independently below.
+    assert wrong_host.status_code == 400
+
+    non_internship = client.post(
+        "/api/linkedin-jobs",
+        json={**common, "url": "https://www.linkedin.com/jobs/view/123456"},
+    )
+    assert non_internship.status_code == 400
+    assert "internship" in non_internship.json()["detail"].lower()
+
+    wrong_host_internship = client.post(
+        "/api/linkedin-jobs",
+        json={
+            **common,
+            "title": "Software Engineer Intern",
+            "description": "A software engineering internship for currently enrolled students.",
+            "url": "https://example.com/jobs/123",
+        },
+    )
+    assert wrong_host_internship.status_code == 400
+    assert "linkedin" in wrong_host_internship.json()["detail"].lower()
+
+
 def test_apply_without_resume_is_a_clear_error(client, monkeypatch) -> None:
     from app.db import SessionLocal
     from app.models import Job
@@ -148,6 +250,7 @@ def test_apply_produces_a_downloadable_docx(client, monkeypatch, tmp_path) -> No
 
     assert body["tailoring"]["fell_back"] is False
     assert body["tailoring"]["violations"] == []
+    assert body["tailoring"]["ats_review"]["match_level"] == "Moderate"
     assert body["docx_url"]
 
     download = client.get(body["docx_url"])
@@ -174,6 +277,150 @@ def test_apply_logs_the_application(client, monkeypatch) -> None:
     assert rows[0]["company"] == "Globex"
     assert rows[0]["status"] == "prepared"
     assert rows[0]["apply_url"] == JOB["apply_url"]
+    assert rows[0]["fit_match_level"] == "Moderate"
+    assert rows[0]["fit_summary"] == "The resume has relevant backend evidence."
+
+
+async def test_background_tailoring_is_visible_before_and_after_completion(
+    client, monkeypatch
+) -> None:
+    """Refreshing the UI must find the durable row while tailoring continues."""
+    _seed(client, monkeypatch)
+
+    import app.routers.apply as apply_module
+
+    launched: list[int] = []
+    monkeypatch.setattr(
+        apply_module,
+        "_launch_application_task",
+        lambda application_id: launched.append(application_id),
+    )
+
+    started = client.post(
+        "/api/applications/tailor",
+        json={"job_id": JOB["id"]},
+    )
+    assert started.status_code == 202, started.text
+    application_id = started.json()["id"]
+    assert launched == [application_id]
+    assert started.json()["workflow_status"] == "queued"
+    assert client.get("/api/applications").json()[0]["workflow_step"] == "queued"
+
+    # Simulate a prior interrupted attempt. Recovery must add the next provider
+    # session instead of erasing already-spent tokens.
+    from app.db import SessionLocal
+    from app.models import Application
+
+    with SessionLocal() as db:
+        application = db.get(Application, application_id)
+        application.llm_requests = 1
+        application.input_tokens = 50
+        application.output_tokens = 10
+        application.estimated_cost_usd = 0.01
+        db.commit()
+
+    await apply_module._process_application(application_id)
+
+    detail = client.get(f"/api/applications/{application_id}").json()
+    assert detail["workflow_status"] == "completed"
+    assert detail["workflow_progress"] == 100
+    assert detail["fit_match_level"] == "Moderate"
+    assert detail["fit_summary"] == "The resume has relevant backend evidence."
+    assert detail["description"] == JOB["description"]
+    assert detail["docx_url"]
+    assert detail["pdf_url"]
+    assert detail["llm_provider"] == "stub"
+    assert detail["llm_model"] == "stub-model"
+    assert detail["llm_requests"] == 3
+    assert detail["input_tokens"] == 250
+    assert detail["output_tokens"] == 50
+    assert detail["estimated_cost_usd"] == pytest.approx(0.01)
+    steps = [event["step"] for event in detail["progress_events"]]
+    assert steps == [
+        "queued",
+        "description_ready",
+        "tailoring",
+        "verifying",
+        "ats_review",
+        "rendering",
+        "completed",
+    ]
+
+
+async def test_task_launch_is_idempotent_and_shutdown_cancels_workers(
+    client, monkeypatch
+) -> None:
+    import asyncio
+    import app.routers.apply as apply_module
+
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    async def wait_forever(application_id: int) -> None:
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.set()
+
+    monkeypatch.setattr(apply_module, "_process_application", wait_forever)
+
+    assert apply_module._launch_application_task(42) is True
+    assert apply_module._launch_application_task(42) is False
+    await started.wait()
+    assert list(apply_module._running_tasks) == [42]
+
+    await apply_module.shutdown_application_tasks()
+    assert cancelled.is_set()
+    await asyncio.sleep(0)
+    assert apply_module._running_tasks == {}
+
+
+def test_startup_recovers_only_queued_and_running_rows_once(client, monkeypatch) -> None:
+    _seed(client, monkeypatch)
+
+    from app.db import SessionLocal
+    from app.models import Application, Resume
+    import app.routers.apply as apply_module
+
+    with SessionLocal() as db:
+        base = db.query(Resume).filter(Resume.is_base.is_(True)).one()
+        applications = []
+        for status in ("queued", "running", "failed", "completed"):
+            resume = Resume(
+                name=f"Recovered {status}",
+                structured_json=base.structured_json,
+                is_base=False,
+                base_resume_id=base.id,
+                tailored_for_job_id=JOB["id"],
+            )
+            db.add(resume)
+            db.flush()
+            application = Application(
+                job_id=JOB["id"],
+                resume_id=resume.id,
+                workflow_status=status,
+                workflow_step=status,
+                workflow_progress=25,
+            )
+            db.add(application)
+            db.flush()
+            applications.append(application.id)
+        db.commit()
+
+    launched: list[int] = []
+
+    def launch(application_id: int) -> bool:
+        launched.append(application_id)
+        return True
+
+    monkeypatch.setattr(apply_module, "_launch_application_task", launch)
+
+    # A second app lifespan simulates a backend restart against the same durable DB.
+    with TestClient(client.app):
+        pass
+
+    assert launched == applications[:2]
 
 
 def test_fabricating_model_falls_back_and_warns(client, monkeypatch, tmp_path) -> None:
@@ -217,6 +464,51 @@ def test_apply_produces_a_single_page_pdf(client, monkeypatch, tmp_path) -> None
         assert len(pdf) == 1, f"PDF must be a single page, got {len(pdf)}"
     finally:
         pdf.close()
+
+
+def test_tracker_job_is_scraped_then_uses_normal_apply_pipeline(client, monkeypatch) -> None:
+    """Tracker roles become normal cached jobs before tailoring starts."""
+    _seed(client, monkeypatch)
+
+    import app.routers.simplify_tracker as tracker_module
+    from app.schemas import SimplifyTrackerJob, SimplifyTrackerResponse
+    from datetime import datetime, timezone
+
+    tracker_job = SimplifyTrackerJob(
+        id="simplify-2027:direct-test",
+        company="Direct Corp",
+        role="Software Engineer Intern",
+        location="Seattle, WA",
+        category="Software Engineering",
+        age="0d",
+        apply_url="https://careers.example.com/jobs/1",
+    )
+
+    async def fake_tracker(**kwargs):
+        return SimplifyTrackerResponse(
+            jobs=[tracker_job],
+            total=1,
+            fetched_at=datetime.now(timezone.utc),
+            source_url="https://github.com/example/tracker",
+        )
+
+    async def fake_scrape(url: str) -> str:
+        assert url == tracker_job.apply_url
+        return "Job Description\nBuild Python and Redis services with the backend team."
+
+    monkeypatch.setattr(tracker_module, "get_tracker", fake_tracker)
+    monkeypatch.setattr(tracker_module, "scrape_job_description", fake_scrape)
+
+    prepared = client.post(
+        f"/api/simplify-tracker/{tracker_job.id}/prepare"
+    )
+    assert prepared.status_code == 200, prepared.text
+    assert prepared.json()["description"].startswith("Job Description")
+    assert prepared.json()["source"] == "simplify_tracker"
+
+    applied = client.post(f"/api/apply/{tracker_job.id}")
+    assert applied.status_code == 200, applied.text
+    assert applied.json()["job"]["company"] == "Direct Corp"
 
 
 def test_pdf_render_failure_is_reported_not_fatal(client, monkeypatch) -> None:

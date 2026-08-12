@@ -1,7 +1,7 @@
 """Process-level configuration.
 
-These are *defaults*. Anything the user can change at runtime (LLM provider, API keys,
-enabled sources) lives in the SQLite `settings` table instead, so the app never requires
+These are *defaults*. Anything the user can change at runtime (LLM provider and API keys)
+lives in the SQLite `settings` table instead, so the app never requires
 an edit-and-restart cycle. See `app.services.settings_store`.
 """
 
@@ -21,7 +21,6 @@ class Settings(BaseSettings):
     )
 
     data_dir: Path = Path("./data")
-    cache_ttl_minutes: int = 60
 
     # Defaults to a cloud provider with no key on purpose: that state is detectable, so
     # a fresh install prompts for setup on first load. Defaulting to `ollama` would look

@@ -9,6 +9,12 @@ const nextConfig = {
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${backend}/api/:path*` }];
   },
+  // Anthropic may spend extra time compiling a new structured-output grammar on the
+  // first request for a schema. Keep the proxy open for that documented cold path;
+  // subsequent requests use Anthropic's cached grammar and are much faster.
+  experimental: {
+    proxyTimeout: 600_000,
+  },
   output: "standalone",
 };
 

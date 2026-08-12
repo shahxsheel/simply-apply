@@ -1,65 +1,16 @@
-"""The connector contract.
-
-Adding a job source means writing one file: subclass `JobConnector`, implement `fetch`,
-drop it in this package. `registry.py` discovers it automatically — no registration list
-to update, which is the "one connector file" success metric from the PRD.
-
-Two rules every connector must honor:
-  1. Return `JobRecord`s, never raw upstream shapes. Normalization is the connector's job.
-  2. Raise on failure rather than returning []. The search layer catches per-connector and
-     degrades gracefully; swallowing errors here would make a broken source look like a
-     source with no results, which is much harder to debug.
-"""
+"""Shared HTTP and HTML helpers for employer internship boards."""
 
 from __future__ import annotations
 
 import re
-from abc import ABC, abstractmethod
 from html import unescape
 from html.parser import HTMLParser
 from io import StringIO
 
 import httpx
 
-from app.schemas import JobRecord, SearchQuery
-
 USER_AGENT = "SimplyApply/0.1 (+https://github.com/jadghazi/simplyapply)"
 DEFAULT_TIMEOUT = httpx.Timeout(20.0, connect=10.0)
-
-
-class JobConnector(ABC):
-    #: Stable identifier used in settings, dedupe preference, and the UI.
-    source: str = ""
-    #: Human-readable name for the settings screen.
-    label: str = ""
-    #: True if the connector needs a user-supplied API key (Tier 2 sources).
-    requires_key: bool = False
-    #: Lower number wins when deduping. ATS boards beat aggregators because their
-    #: apply_url is the employer's real application form, not a redirect.
-    priority: int = 50
-
-    @abstractmethod
-    async def fetch(self, client: httpx.AsyncClient, q: SearchQuery) -> list[JobRecord]:
-        """Return normalized postings. Raise on transport/parse failure."""
-
-    # -- helpers available to every connector ------------------------------
-
-    @staticmethod
-    def matches(q: SearchQuery, title: str, description: str = "", location: str = "") -> bool:
-        """Client-side filter for sources with no server-side search.
-
-        Several Tier-1 boards return a full dump with no query parameter, so filtering
-        has to happen here. Terms are ANDed: every whitespace-separated term must appear
-        somewhere in the title or description.
-        """
-        if q.query:
-            haystack = f"{title} {description}".lower()
-            if not all(term in haystack for term in q.query.lower().split()):
-                return False
-        if q.location:
-            if q.location.lower().strip() not in location.lower():
-                return False
-        return True
 
 
 class _TextExtractor(HTMLParser):

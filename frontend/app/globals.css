@@ -1,102 +1,340 @@
 @import "tailwindcss";
 
-/* Design tokens extracted from simplify.jobs' live computed styles rather than
-   eyeballed, so the palette matches the reference exactly.
-   Simplify uses Circular Std (proprietary); Figtree is the closest free
-   geometric-humanist substitute. */
-@theme {
-  --color-brand: #12a1c0;
-  --color-brand-dark: #0e8299;
-  --color-brand-tint: #f0fcff;
-  --color-brand-teal: #5eead4;
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-  --color-ink: #263137;
-  --color-muted: #6b727f;
-  --color-line: #e5e9ec;
-  --color-page: #f8fafc;
-  --color-gold: #ffc700;
+/*
+ * SimplyApply's product UI, interpreted through New Genre's editorial system.
+ * The information architecture stays deliberately familiar; atmosphere, type,
+ * shape, and surface hierarchy carry the rebrand.
+ */
+@theme {
+  --color-brand: #24334d;
+  --color-brand-dark: #0c1018;
+  --color-brand-tint: #edf1f5;
+  --color-brand-teal: #dce5ec;
+
+  --color-ink: #0c1018;
+  --color-muted: #6d7074;
+  --color-line: #dfe1e2;
+  --color-page: #f7f5f2;
+  --color-gold: #a9603f;
+  --color-surface: #ffffff;
+  --color-surface-soft: #f1f0ed;
+  --color-solid: #0c1018;
+  --color-on-solid: #ffffff;
+  --color-scrim: #090d14;
 
   --font-sans: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
 
   --radius-card: 16px;
   --radius-panel: 20px;
 }
 
+:root {
+  --dawn-arc: linear-gradient(
+    145deg,
+    #1e1310 0%,
+    #182644 18%,
+    #5a769f 38%,
+    #c1d3e6 65%,
+    #fef9e1 84%,
+    #f7f3f0 100%
+  );
+  --focus-ring: rgb(36 51 77 / 0.16);
+  --surface-card: rgb(255 255 255 / 0.68);
+  --surface-field: rgb(255 255 255 / 0.72);
+  --surface-hover: rgb(255 255 255 / 0.92);
+  --border-subtle: rgb(12 16 24 / 0.1);
+  --border-control: rgb(12 16 24 / 0.18);
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --color-brand: #b9cce6;
+  --color-brand-dark: #e4ebf4;
+  --color-brand-tint: #202b3b;
+  --color-brand-teal: #263747;
+  --color-ink: #f3f0eb;
+  --color-muted: #a8adb5;
+  --color-line: #343c47;
+  --color-page: #0c1018;
+  --color-gold: #d79a75;
+  --color-surface: #151b25;
+  --color-surface-soft: #1b222e;
+  --color-solid: #f3f0eb;
+  --color-on-solid: #0c1018;
+  --color-scrim: #02050a;
+  --dawn-arc: linear-gradient(
+    145deg,
+    #130c0a 0%,
+    #172239 22%,
+    #405675 46%,
+    #7289a7 66%,
+    #b7aa96 84%,
+    #40332d 100%
+  );
+  --focus-ring: rgb(185 204 230 / 0.22);
+  --surface-card: rgb(18 24 34 / 0.66);
+  --surface-field: rgb(20 27 38 / 0.76);
+  --surface-hover: rgb(30 39 52 / 0.92);
+  --border-subtle: rgb(255 255 255 / 0.11);
+  --border-control: rgb(255 255 255 / 0.18);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 html,
 body {
+  min-height: 100%;
   background: var(--color-page);
   color: var(--color-ink);
+  letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Simplify's cards lean on hairline borders and very soft shadows rather than
-   heavy elevation — the depth comes from spacing, not drop shadows. */
+body {
+  position: relative;
+  background-image:
+    radial-gradient(circle at 80% -10%, rgb(193 211 230 / 0.58), transparent 32rem),
+    linear-gradient(180deg, #f4efe9 0, #f4f6f7 24rem, var(--color-page) 44rem);
+  background-attachment: fixed;
+  transition:
+    background-color 220ms ease,
+    color 220ms ease;
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: 999px;
+  filter: blur(80px);
+  transform: translateZ(0);
+}
+
+body::before {
+  top: -14rem;
+  right: -8rem;
+  width: min(60vw, 54rem);
+  height: min(60vw, 54rem);
+  background: rgb(106 137 174 / 0.3);
+}
+
+body::after {
+  bottom: -18rem;
+  left: 16%;
+  width: min(48vw, 42rem);
+  height: min(48vw, 42rem);
+  background: rgb(237 148 84 / 0.11);
+}
+
+body > * {
+  position: relative;
+  z-index: 1;
+}
+
+[data-theme="dark"] body {
+  background-image:
+    radial-gradient(circle at 78% -12%, rgb(83 108 143 / 0.42), transparent 34rem),
+    linear-gradient(180deg, #17110f 0, #101727 24rem, var(--color-page) 48rem);
+}
+
+[data-theme="dark"] body::before {
+  background: rgb(69 95 133 / 0.34);
+  opacity: 0.82;
+}
+
+[data-theme="dark"] body::after {
+  background: rgb(166 91 55 / 0.14);
+}
+
+main {
+  position: relative;
+}
+
+main h1 {
+  max-width: 18ch;
+  font-family: var(--font-display);
+  font-size: clamp(2.75rem, 4.5vw, 4.5rem);
+  font-weight: 400;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+::selection {
+  background: #c1d3e6;
+  color: var(--color-ink);
+}
+
 @utility card {
-  background: #fff;
-  border: 1px solid var(--color-line);
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-card);
+  backdrop-filter: blur(28px) saturate(115%);
 }
 
 @utility btn-primary {
   display: inline-flex;
+  min-height: 2.625rem;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  background: var(--color-brand);
-  color: #fff;
-  font-weight: 600;
+  background: var(--color-solid);
+  color: var(--color-on-solid);
+  font-weight: 550;
+  border: 1px solid var(--color-solid);
   border-radius: 9999px;
   padding: 0.625rem 1.25rem;
-  transition: background 120ms ease;
-}
-@utility btn-primary-hover {
-  background: var(--color-brand-dark);
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
 }
 
 @utility btn-ghost {
   display: inline-flex;
+  min-height: 2.625rem;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  background: #fff;
+  background: var(--surface-card);
   color: var(--color-ink);
-  font-weight: 600;
-  border: 1px solid var(--color-line);
+  font-weight: 550;
+  border: 1px solid var(--border-control);
   border-radius: 9999px;
   padding: 0.625rem 1.25rem;
-  transition: border-color 120ms ease;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
 }
 
 @utility field {
   width: 100%;
-  border: 1px solid var(--color-line);
-  border-radius: 8px;
-  padding: 0.5rem 0.75rem;
+  min-height: 2.75rem;
+  border: 1px solid var(--border-control);
+  border-radius: 9999px;
+  padding: 0.625rem 1rem;
   font-size: 0.875rem;
-  background: #fff;
+  background: var(--surface-field);
   color: var(--color-ink);
   outline: none;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
 }
-@utility field-focus {
-  border-color: var(--color-brand);
-  box-shadow: 0 0 0 3px rgb(18 161 192 / 0.12);
+
+textarea.field {
+  border-radius: 16px;
 }
 
 input.field:focus,
 textarea.field:focus,
 select.field:focus {
   border-color: var(--color-brand);
-  box-shadow: 0 0 0 3px rgb(18 161 192 / 0.12);
+  background: var(--surface-hover);
+  box-shadow: 0 0 0 4px var(--focus-ring);
 }
 
-button.btn-primary:hover:not(:disabled) {
-  background: var(--color-brand-dark);
+button.btn-primary:hover:not(:disabled),
+a.btn-primary:hover:not([aria-disabled="true"]) {
+  background: var(--color-brand);
+  color: var(--color-on-solid);
+  transform: translateY(-1px);
 }
+
 button.btn-primary:disabled,
 a.btn-primary[aria-disabled="true"] {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
-button.btn-ghost:hover:not(:disabled) {
-  border-color: var(--color-brand);
+
+button.btn-ghost:hover:not(:disabled),
+a.btn-ghost:hover {
+  background: var(--surface-hover);
+  border-color: var(--color-ink);
+  transform: translateY(-1px);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
+}
+
+.theme-toggle {
+  display: flex;
+  width: 100%;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.65rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-card);
+  padding: 0.55rem 0.8rem;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 550;
+  backdrop-filter: blur(24px) saturate(115%);
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.theme-toggle:hover {
+  border-color: var(--border-control);
+  background: var(--surface-hover);
+  color: var(--color-ink);
+}
+
+.theme-toggle-compact {
+  width: 2.25rem;
+  min-height: 2.25rem;
+  justify-content: center;
+  padding: 0;
+}
+
+.theme-toggle svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.theme-icon-sun {
+  display: none;
+}
+
+[data-theme="dark"] .theme-icon-sun {
+  display: block;
+}
+
+[data-theme="dark"] .theme-icon-moon {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

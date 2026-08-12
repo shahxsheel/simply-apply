@@ -201,7 +201,7 @@ export default function ResumePage() {
 
           <ResumeEditor value={draft} onChange={setDraft} />
 
-          <div className="sticky bottom-0 mt-6 flex items-center justify-between gap-4 rounded-t-xl border-t border-line bg-white/95 px-4 py-4 backdrop-blur">
+          <div className="sticky bottom-0 mt-6 flex items-center justify-between gap-4 rounded-t-xl border-t border-line bg-surface/75 px-4 py-4 backdrop-blur-2xl">
             <p className="text-xs text-muted">
               {existing && !needsConfirm
                 ? "Editing your saved base resume."
