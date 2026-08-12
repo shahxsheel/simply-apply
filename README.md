@@ -25,6 +25,9 @@ embellish your experience. SimplyApply does neither:
 - **Greenhouse and Ashby have dedicated internship-only pages.** Their employer boards
   are filtered before display; full-time, new-grad, and misleading references such as
   "excluding internships" are rejected.
+- **Quick Apply accepts a posting from almost any job site.** Paste its URL and full
+  description to tailor a resume for internships or full-time roles without waiting for
+  that employer to appear on a supported board.
 - **Tailoring is the product, and it's free.** No autofill engine, no accounts, no SaaS.
 - **The no-fabrication rule is enforced in code, not in a prompt.** See below.
 - **Your resume is structured data, not a file.** Every output is regenerated from it; no
@@ -124,6 +127,7 @@ saved, no endpoint will hand the value back out.
 │                                                       │
 │   Next.js  ──/api rewrite──▶  FastAPI                 │
 │                                 ├── internship boards │
+│                                 ├── manual job import │
 │                                 ├── tailor()          │
 │                                 ├── guardrail  ◀── the important bit
 │                                 └── docx + PDF render │
@@ -159,6 +163,12 @@ provider-agnostic scraper fetches the employer page, locates its Job Description
 through the same truthful tailoring and ATS-review pipeline as board listings. Results
 are cached for 15 minutes, with stale-cache fallback when GitHub has a transient outage.
 
+**Quick Apply.** Paste an HTTP(S) posting URL, title, company, location, and complete
+description from LinkedIn, Indeed, an employer careers page, or another job site. The
+posting is stored locally as a normal job and enters the same background tailoring,
+fact-verification, one-page rendering, ATS-review, and application-tracking workflow.
+SimplyApply does not sign into the job site or submit the final application for you.
+
 ---
 
 ## Project status
@@ -166,12 +176,12 @@ are cached for 15 minutes, with stale-cache fallback when GitHub has a transient
 The full internship board → tailor → render → apply loop
 works end to end.
 
-**Verified:** 90 passing tests covering the guardrail (including employer/title pairing,
+**Verified:** backend and frontend tests cover the guardrail (including employer/title pairing,
 dates, inflated metrics, and phantom skills), selective one-page tailoring, the ATS
 review, Simplify tracker parsing and filtering, retry and fallback control flow, DOCX
 text-extraction ordering, single-page PDF rendering (page count read back from the
-generated file, including an oversized resume shrunk to fit), and the complete apply
-loop through the real app.
+generated file, including an oversized resume shrunk to fit), generic job imports, and
+the complete apply loop through the real app.
 
 **Verified:** `docker compose up`, including frontend-to-backend API proxying.
 

@@ -225,6 +225,99 @@ def test_linkedin_import_rejects_non_linkedin_and_non_internship_jobs(client) ->
     assert "linkedin" in wrong_host_internship.json()["detail"].lower()
 
 
+def test_generic_job_import_accepts_any_http_job_site_and_role(client) -> None:
+    response = client.post(
+        "/api/job-imports",
+        json={
+            "url": "jobs.example.com/openings/staff-engineer?ref=board#details",
+            "title": "Staff Software Engineer",
+            "company": "Example Labs",
+            "location": "New York, NY",
+            "remote": True,
+            "description": (
+                "Lead the design and delivery of reliable distributed systems while "
+                "mentoring engineers and partnering with product teams."
+            ),
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["id"].startswith("manual_import:")
+    assert body["source"] == "manual_import"
+    assert body["title"] == "Staff Software Engineer"
+    assert body["remote"] is True
+    assert body["apply_url"] == (
+        "https://jobs.example.com/openings/staff-engineer?ref=board"
+    )
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "javascript:alert(1)",
+        "file:///tmp/posting.html",
+        "https://user:secret@example.com/jobs/123",
+        "not a valid url",
+    ],
+)
+def test_generic_job_import_rejects_unsafe_or_invalid_urls(client, url) -> None:
+    response = client.post(
+        "/api/job-imports",
+        json={
+            "url": url,
+            "title": "Software Engineer",
+            "company": "Example Labs",
+            "description": (
+                "Build and maintain production systems with a collaborative "
+                "engineering team using modern software practices."
+            ),
+        },
+    )
+
+    assert response.status_code == 400
+
+
+def test_generic_job_import_rejects_blank_required_copy(client) -> None:
+    response = client.post(
+        "/api/job-imports",
+        json={
+            "url": "https://jobs.example.com/roles/123",
+            "title": "   ",
+            "company": "Example Labs",
+            "description": " " * 40,
+        },
+    )
+
+    assert response.status_code == 400
+
+
+def test_generic_job_reimport_updates_one_stable_record(client) -> None:
+    payload = {
+        "url": "https://careers.example.com/jobs/42#overview",
+        "title": "Platform Engineer",
+        "company": "Example",
+        "description": "Build and operate a reliable platform for product engineering teams.",
+    }
+    first = client.post("/api/job-imports", json=payload)
+    second = client.post(
+        "/api/job-imports",
+        json={
+            **payload,
+            "title": "Senior Platform Engineer",
+            "description": (
+                "Build and operate a reliable platform for product engineering teams "
+                "and lead cross-functional infrastructure projects."
+            ),
+        },
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["id"] == second.json()["id"]
+    assert second.json()["title"] == "Senior Platform Engineer"
+
+
 def test_apply_without_resume_is_a_clear_error(client, monkeypatch) -> None:
     from app.db import SessionLocal
     from app.models import Job

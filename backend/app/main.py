@@ -14,6 +14,7 @@ from app.routers import (
     applications,
     apply,
     internship_boards,
+    job_imports,
     linkedin_jobs,
     resumes,
     settings,
@@ -65,6 +66,7 @@ app.include_router(apply.router)
 app.include_router(applications.router)
 app.include_router(settings.router)
 app.include_router(simplify_tracker.router)
+app.include_router(job_imports.router)
 app.include_router(linkedin_jobs.router)
 
 

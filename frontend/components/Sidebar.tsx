@@ -8,7 +8,7 @@ const NAV = [
   { href: "/simplify", label: "Simplify Job Tracker", icon: TrackerIcon, featured: true },
   { href: "/ashby", label: "Ashby Internships", icon: BriefcaseIcon, featured: true },
   { href: "/greenhouse", label: "Greenhouse Internships", icon: GreenhouseIcon, featured: true },
-  { href: "/linkedin", label: "LinkedIn Import", icon: LinkedInIcon, featured: true },
+  { href: "/quick-apply", label: "Quick Apply", icon: QuickApplyIcon, featured: true },
   { href: "/resume", label: "Resume", icon: DocIcon, featured: false },
   { href: "/applications", label: "Applications", icon: ListIcon, featured: false },
   { href: "/settings", label: "Settings", icon: GearIcon, featured: false },
@@ -159,11 +159,11 @@ function TrackerIcon() {
   );
 }
 
-function LinkedInIcon() {
+function QuickApplyIcon() {
   return (
     <svg {...strokeProps} aria-hidden>
-      <rect x="3" y="3" width="18" height="18" rx="3" />
-      <path d="M8 10v7M8 7v.01M12 17v-4a3 3 0 0 1 6 0v4M12 10v7" />
+      <path d="M12 3v18M3 12h18" />
+      <path d="m17 7 4 5-4 5M7 17l-4-5 4-5" />
     </svg>
   );
 }

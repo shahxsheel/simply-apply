@@ -204,6 +204,8 @@ export type LinkedInJobImport = {
   description: string;
 };
 
+export type JobImport = LinkedInJobImport;
+
 export type SettingsOut = {
   llm_provider: string;
   model: string;
@@ -268,6 +270,12 @@ export const api = {
 
   importLinkedInJob: (job: LinkedInJobImport) =>
     request<JobRecord>("/api/linkedin-jobs", {
+      method: "POST",
+      body: JSON.stringify(job),
+    }),
+
+  importJob: (job: JobImport) =>
+    request<JobRecord>("/api/job-imports", {
       method: "POST",
       body: JSON.stringify(job),
     }),

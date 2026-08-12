@@ -73,6 +73,17 @@ class LinkedInJobImport(BaseModel):
     description: str = Field(min_length=40, max_length=100_000)
 
 
+class JobImport(BaseModel):
+    """A posting copied by the user from any HTTP(S) job site."""
+
+    url: str = Field(min_length=1, max_length=2000)
+    title: str = Field(min_length=1, max_length=400)
+    company: str = Field(min_length=1, max_length=300)
+    location: str = Field(default="", max_length=300)
+    remote: bool = False
+    description: str = Field(min_length=40, max_length=100_000)
+
+
 # ------------------------------------------------------------------------ resume
 
 

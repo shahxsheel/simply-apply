@@ -46,4 +46,14 @@ describe("Sidebar", () => {
     expect(screen.getAllByRole("link", { name: "SimplyApply home" })).toHaveLength(2);
     expect(screen.getByText("Private by design.")).toBeInTheDocument();
   });
+
+  it("links to the provider-agnostic quick apply workflow", () => {
+    currentPath = "/quick-apply";
+    const { container } = render(<Sidebar />);
+
+    expect(
+      container.querySelectorAll('a[href="/quick-apply"][aria-current="page"]'),
+    ).toHaveLength(2);
+    expect(screen.getAllByText("Quick Apply")).toHaveLength(2);
+  });
 });
