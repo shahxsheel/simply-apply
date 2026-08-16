@@ -57,6 +57,7 @@ class _Stub:
 
     def __init__(self, fabricate: bool = False) -> None:
         self.fabricate = fabricate
+        self.systems: list[str] = []
         self.token_usage = SimpleNamespace(
             requests=0,
             input_tokens=0,
@@ -68,6 +69,7 @@ class _Stub:
         )
 
     async def complete_structured(self, *, system, user, schema, max_tokens=16000):
+        self.systems.append(system)
         self.token_usage.requests += 1
         self.token_usage.input_tokens += 100
         self.token_usage.output_tokens += 20
@@ -113,7 +115,7 @@ def client(tmp_path, monkeypatch):
         yield c
 
 
-def _seed(client, monkeypatch, fabricate: bool = False) -> None:
+def _seed(client, monkeypatch, fabricate: bool = False) -> _Stub:
     """Store a base resume, cache the job, and pin the LLM to the stub."""
     assert client.post(
         "/api/resumes", json={"name": "Base", "data": BASE_RESUME}
@@ -139,7 +141,9 @@ def _seed(client, monkeypatch, fabricate: bool = False) -> None:
 
     import app.routers.apply as apply_module
 
-    monkeypatch.setattr(apply_module, "build_provider", lambda db: _Stub(fabricate))
+    provider = _Stub(fabricate)
+    monkeypatch.setattr(apply_module, "build_provider", lambda db: provider)
+    return provider
 
 
 def test_health(client) -> None:
@@ -637,3 +641,37 @@ def test_settings_never_returns_the_api_key(client) -> None:
     body = client.get("/api/settings").json()
     assert body["has_key"] is True
     assert "sk-secret" not in str(body)
+
+
+def test_settings_exposes_updates_and_resets_tailoring_prompt(client) -> None:
+    default = client.get("/api/settings").json()
+    assert "RECRUITER EYE-SCAN AND REVISION PASS" in default["tailor_system_prompt"]
+    assert default["tailor_system_prompt_is_custom"] is False
+
+    custom_prompt = "Prioritize concise evidence supported by the base resume."
+    updated = client.put(
+        "/api/settings", json={"tailor_system_prompt": custom_prompt}
+    )
+    assert updated.status_code == 200
+    assert updated.json()["tailor_system_prompt"] == custom_prompt
+    assert updated.json()["tailor_system_prompt_is_custom"] is True
+
+    reset = client.put("/api/settings", json={"tailor_system_prompt": ""})
+    assert reset.status_code == 200
+    assert "RECRUITER EYE-SCAN AND REVISION PASS" in reset.json()[
+        "tailor_system_prompt"
+    ]
+    assert reset.json()["tailor_system_prompt_is_custom"] is False
+
+
+def test_apply_uses_saved_tailoring_system_prompt(client, monkeypatch) -> None:
+    provider = _seed(client, monkeypatch)
+    custom_prompt = "Use this exact custom resume tailoring instruction."
+    assert client.put(
+        "/api/settings", json={"tailor_system_prompt": custom_prompt}
+    ).status_code == 200
+
+    response = client.post(f"/api/apply/{JOB['id']}")
+
+    assert response.status_code == 200, response.text
+    assert provider.systems[0] == custom_prompt

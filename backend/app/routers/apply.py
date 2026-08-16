@@ -32,7 +32,8 @@ from app.schemas import (
 from app.services.job_page_scraper import JobDescriptionError, scrape_job_description
 from app.services.render_docx import render_docx
 from app.services.render_pdf import PDFRenderError, render_pdf
-from app.services.tailor import tailor
+from app.services import settings_store
+from app.services.tailor import SYSTEM_PROMPT, tailor
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["apply"])
@@ -231,6 +232,7 @@ async def _process_application(application_id: int) -> None:
                 progress=lambda step, detail, value: _set_progress(
                     db, application, step, detail, value
                 ),
+                system_prompt=settings_store.tailor_system_prompt(db, SYSTEM_PROMPT),
             )
 
             _save_provider_usage(application, provider)
@@ -462,7 +464,12 @@ async def apply(job_id: str, db: Session = Depends(get_db)) -> ApplyResponse:
 
     try:
         provider = build_provider(db)
-        result = await tailor(provider, base_resume, job)
+        result = await tailor(
+            provider,
+            base_resume,
+            job,
+            system_prompt=settings_store.tailor_system_prompt(db, SYSTEM_PROMPT),
+        )
     except LLMError as exc:
         raise HTTPException(400, str(exc)) from exc
 

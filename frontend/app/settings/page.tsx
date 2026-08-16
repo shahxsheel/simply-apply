@@ -8,6 +8,7 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<SettingsOut | null>(null);
   const [companies, setCompanies] = useState("");
   const [ashbyBoards, setAshbyBoards] = useState("");
+  const [systemPrompt, setSystemPrompt] = useState("");
   const [capabilities, setCapabilities] = useState<{
     pdf: boolean;
     pdf_detail: string;
@@ -28,6 +29,7 @@ export default function SettingsPage() {
         setCapabilities(caps);
         setCompanies(cos.join("\n"));
         setAshbyBoards(boards.join("\n"));
+        setSystemPrompt(s.tailor_system_prompt);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Load failed."));
   }, []);
@@ -57,6 +59,22 @@ export default function SettingsPage() {
     }
   }
 
+  async function saveSystemPrompt(value: string) {
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const next = await api.saveSettings({ tailor_system_prompt: value });
+      setSettings(next);
+      setSystemPrompt(next.tailor_system_prompt);
+      setSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Prompt save failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
       <header className="mb-6">
@@ -79,6 +97,76 @@ export default function SettingsPage() {
       <div className="mb-4">
         <ProviderSetup settings={settings} onSaved={setSettings} />
       </div>
+
+      {/* ---------------- AI instructions ---------------- */}
+      <section className="card mb-4 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-bold">Resume tailoring system prompt</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted">
+              This is the instruction sent when SimplyApply selects and rewrites resume
+              content. Resume parsing and the ATS review use separate fixed instructions.
+              The no-fabrication guardrail still checks every generated resume.
+            </p>
+          </div>
+          <span className="rounded-full border border-line bg-page px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-muted">
+            {settings.tailor_system_prompt_is_custom ? "Customized" : "Default"}
+          </span>
+        </div>
+        <label className="mt-4 block">
+          <span className="sr-only">Resume tailoring system prompt</span>
+          <textarea
+            className="field min-h-[26rem] resize-y font-mono text-xs leading-relaxed"
+            value={systemPrompt}
+            maxLength={50_000}
+            spellCheck={false}
+            onChange={(event) => setSystemPrompt(event.target.value)}
+          />
+        </label>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[11px] tabular-nums text-muted">
+            {systemPrompt.length.toLocaleString()} / 50,000 characters
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={
+                busy ||
+                (!settings.tailor_system_prompt_is_custom &&
+                  systemPrompt === settings.tailor_system_prompt)
+              }
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Reset the resume tailoring prompt to the SimplyApply default?",
+                  )
+                ) {
+                  if (settings.tailor_system_prompt_is_custom) {
+                    void saveSystemPrompt("");
+                  } else {
+                    setSystemPrompt(settings.tailor_system_prompt);
+                  }
+                }
+              }}
+            >
+              Reset to default
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={
+                busy ||
+                !systemPrompt.trim() ||
+                systemPrompt === settings.tailor_system_prompt
+              }
+              onClick={() => void saveSystemPrompt(systemPrompt)}
+            >
+              {busy ? "Saving…" : "Save system prompt"}
+            </button>
+          </div>
+        </div>
+      </section>
 
       {/* ---------------- greenhouse ---------------- */}
       <section className="card mb-4 p-5">

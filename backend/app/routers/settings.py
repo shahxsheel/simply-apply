@@ -15,18 +15,24 @@ from app.llm.base import LLMError
 from app.llm.registry import PROVIDERS, build_provider
 from app.schemas import SettingsIn, SettingsOut
 from app.services import settings_store
+from app.services.tailor import SYSTEM_PROMPT
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 
 def _current(db: Session) -> SettingsOut:
     provider = settings_store.provider(db)
+    custom_prompt = settings_store.get(
+        db, settings_store.KEY_TAILOR_SYSTEM_PROMPT, ""
+    )
     return SettingsOut(
         llm_provider=provider,
         model=settings_store.model_for(db, provider),
         has_key=bool(settings_store.api_key(db, provider)),
         ollama_host=settings_store.ollama_host(db),
         openai_base_url=settings_store.openai_base_url(db),
+        tailor_system_prompt=custom_prompt or SYSTEM_PROMPT,
+        tailor_system_prompt_is_custom=bool(custom_prompt),
     )
 
 
@@ -61,6 +67,16 @@ def write_settings(payload: SettingsIn, db: Session = Depends(get_db)) -> Settin
     if payload.openai_base_url is not None:
         settings_store.set_value(
             db, settings_store.KEY_OPENAI_BASE_URL, payload.openai_base_url.strip()
+        )
+
+    if payload.tailor_system_prompt is not None:
+        # An empty value means "reset". Preserve intentional formatting for custom
+        # prompts instead of stripping or normalizing the text that reaches the model.
+        prompt = payload.tailor_system_prompt
+        settings_store.set_value(
+            db,
+            settings_store.KEY_TAILOR_SYSTEM_PROMPT,
+            prompt if prompt.strip() else "",
         )
 
     if payload.greenhouse_companies is not None:

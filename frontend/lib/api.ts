@@ -212,6 +212,8 @@ export type SettingsOut = {
   has_key: boolean;
   ollama_host: string;
   openai_base_url: string;
+  tailor_system_prompt: string;
+  tailor_system_prompt_is_custom: boolean;
 };
 
 /**

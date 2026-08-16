@@ -68,6 +68,29 @@ RELEVANCE AND ONE-PAGE REQUIREMENTS:
 - Omit irrelevant work, projects, bullets, and skills. Never replace omitted facts with
   invented ones.
 
+RECRUITER EYE-SCAN AND REVISION PASS:
+- Before returning the resume, silently review the complete draft in display order as a
+  human recruiter making a quick first pass. This is a human-readability review, not
+  another keyword count. Do not output the review; revise the resume and return only the
+  improved final version.
+- First-glance test: can the recruiter immediately identify the candidate's target role
+  and strongest job-relevant qualifications from the summary and leading evidence,
+  without having to infer connections? If not, make those connections explicit using
+  only facts and vocabulary supported by the base resume.
+- Evidence scan: lead each section, selected entry, and bullet list with the strongest
+  evidence for the job's most important requirements. Replace generic or repetitive
+  wording with specific supported actions, tools, scope, and outcomes. Never invent a
+  result or metric when the base resume does not provide one.
+- Readability scan: make every bullet easy to skim, start with a strong action verb, and
+  communicate what the candidate did, how they did it, and the result or purpose when the
+  base resume supports those details. Remove first-person pronouns, filler, unexplained
+  jargon, spelling errors, tense errors, and inconsistent phrasing.
+- Visual-density scan: avoid both walls of text and weak fragments. Keep bullets concise
+  enough to scan in the fixed one-page template, generally one or two rendered lines,
+  while retaining the substantial truthful detail needed to fill the page.
+- After this scan, revise the draft once to fix every issue found, then return the revised
+  complete resume. Do not return critique, alternatives, scores, or editing notes.
+
 STYLE REQUIREMENTS:
 - Never use the Unicode em dash character (U+2014) anywhere in the output. Rewrite the
   sentence using commas, colons, semicolons, parentheses, or periods instead.
@@ -259,15 +282,18 @@ async def tailor(
     resume: StructuredResume,
     job: JobRecord,
     progress: Callable[[str, str, int], None] | None = None,
+    *,
+    system_prompt: str | None = None,
 ) -> TailorResult:
     base_prompt = _build_user_prompt(resume, job)
+    effective_system_prompt = system_prompt or SYSTEM_PROMPT
     notes: list[str] = []
 
     if progress:
         progress("tailoring", "Selecting and rewriting the strongest job-relevant evidence.", 35)
     try:
         candidate = await provider.complete_structured(
-            system=SYSTEM_PROMPT, user=base_prompt, schema=StructuredResume
+            system=effective_system_prompt, user=base_prompt, schema=StructuredResume
         )
     except LLMError:
         raise
@@ -298,7 +324,7 @@ async def tailor(
 
     try:
         candidate = await provider.complete_structured(
-            system=SYSTEM_PROMPT, user=retry_prompt, schema=StructuredResume
+            system=effective_system_prompt, user=retry_prompt, schema=StructuredResume
         )
     except LLMError as exc:
         log.warning("tailor: retry failed (%s); falling back to base resume", exc)

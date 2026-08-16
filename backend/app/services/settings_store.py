@@ -23,6 +23,7 @@ KEY_MODEL = "llm_model"
 KEY_API_KEY = "llm_api_key"
 KEY_OLLAMA_HOST = "ollama_host"
 KEY_OPENAI_BASE_URL = "openai_base_url"
+KEY_TAILOR_SYSTEM_PROMPT = "tailor_system_prompt"
 KEY_GREENHOUSE_COMPANIES = "greenhouse_companies"
 KEY_ASHBY_BOARDS = "ashby_boards"
 
@@ -110,6 +111,11 @@ def ollama_host(db: Session) -> str:
 
 def openai_base_url(db: Session) -> str:
     return get(db, KEY_OPENAI_BASE_URL, get_settings().openai_base_url)
+
+
+def tailor_system_prompt(db: Session, default: str) -> str:
+    """Return the user override, falling back to the versioned safe default."""
+    return get(db, KEY_TAILOR_SYSTEM_PROMPT, default)
 
 
 def greenhouse_companies(db: Session) -> list[str]:

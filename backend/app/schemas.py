@@ -232,6 +232,8 @@ class SettingsOut(BaseModel):
     has_key: bool
     ollama_host: str
     openai_base_url: str
+    tailor_system_prompt: str
+    tailor_system_prompt_is_custom: bool
 
 
 class SettingsIn(BaseModel):
@@ -240,6 +242,7 @@ class SettingsIn(BaseModel):
     api_key: str | None = None
     ollama_host: str | None = None
     openai_base_url: str | None = None
+    tailor_system_prompt: str | None = Field(default=None, max_length=50_000)
     greenhouse_companies: list[str] | None = None
     ashby_boards: list[str] | None = None
 

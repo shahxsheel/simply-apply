@@ -163,6 +163,29 @@ async def test_prompt_contains_job_and_resume(base, job) -> None:
     assert "Never use the Unicode em dash character (U+2014)" in provider.systems[0]
 
 
+async def test_prompt_requires_recruiter_eye_scan_and_revision(base, job) -> None:
+    provider = StubProvider([_clean(base)])
+    await tailor(provider, base, job)
+
+    system = provider.systems[0]
+    assert "RECRUITER EYE-SCAN AND REVISION PASS" in system
+    assert "human recruiter making a quick first pass" in system
+    assert "without having to infer connections" in system
+    assert "what the candidate did, how they did it" in system
+    assert "generally one or two rendered lines" in system
+    assert "revise the draft once" in system
+    assert "Do not return critique" in system
+
+
+async def test_custom_system_prompt_is_used_for_initial_attempt_and_retry(base, job) -> None:
+    provider = StubProvider([_fabricated(base), _clean(base)])
+    custom_prompt = "Use the user's saved tailoring instructions."
+
+    await tailor(provider, base, job, system_prompt=custom_prompt)
+
+    assert provider.systems == [custom_prompt, custom_prompt]
+
+
 async def test_long_job_description_is_truncated(base) -> None:
     """Guards against blowing the context window on a pathological posting."""
     huge = JobRecord(
