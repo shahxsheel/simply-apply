@@ -56,4 +56,14 @@ describe("Sidebar", () => {
     ).toHaveLength(2);
     expect(screen.getAllByText("Quick Apply")).toHaveLength(2);
   });
+
+  it("links to metrics and marks it as the current destination", () => {
+    currentPath = "/metrics";
+    const { container } = render(<Sidebar />);
+
+    expect(
+      container.querySelectorAll('a[href="/metrics"][aria-current="page"]'),
+    ).toHaveLength(2);
+    expect(screen.getAllByText("Metrics")).toHaveLength(2);
+  });
 });

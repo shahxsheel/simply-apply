@@ -11,6 +11,7 @@ const NAV = [
   { href: "/quick-apply", label: "Quick Apply", icon: QuickApplyIcon, featured: true },
   { href: "/resume", label: "Resume", icon: DocIcon, featured: false },
   { href: "/applications", label: "Applications", icon: ListIcon, featured: false },
+  { href: "/metrics", label: "Metrics", icon: MetricsIcon, featured: false },
   { href: "/settings", label: "Settings", icon: GearIcon, featured: false },
 ];
 
@@ -199,6 +200,15 @@ function ListIcon() {
   return (
     <svg {...strokeProps} aria-hidden>
       <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+    </svg>
+  );
+}
+
+function MetricsIcon() {
+  return (
+    <svg {...strokeProps} aria-hidden>
+      <path d="M4 19V9M10 19V5M16 19v-7M22 19H2" />
+      <path d="m3 6 5-3 5 4 7-5" />
     </svg>
   );
 }
